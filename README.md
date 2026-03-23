@@ -296,7 +296,7 @@ python pacbio_pileup.py \
 
 ## Data availability
 
-Raw sequencing data are deposited in NCBI SRA under BioProject [PRJNA######]. Processed results and reference files are available at Zenodo (DOI: 10.5281/zenodo.#######).
+Raw sequencing data are deposited in NCBI SRA under BioProject PRJNA1439403. Processed results and reference files are available at Zenodo ( DOI: 10.5281/zenodo.19186494).
 
 ---
 
