@@ -122,9 +122,15 @@ def run_pileup(bam_path, ref, R, min_len=MIN_LEN, max_reads=MAX_READS, verbose=T
             continue
 
         aligned += 1
-        query  = seq if best_hit.strand == 1 else rc(seq)
-        r_pos  = best_hit.r_st
-        q_pos  = best_hit.q_st
+        # For reverse strand hits, mappy reports q_st/q_en from the 3' end
+        # of the original read. Use rc(seq) and start at len(seq) - hit.q_en.
+        if best_hit.strand == 1:
+            query = seq
+            q_pos = best_hit.q_st
+        else:
+            query = rc(seq)
+            q_pos = len(seq) - best_hit.q_en
+        r_pos = best_hit.r_st
 
         for op, length in best_hit.cigar:
             if op in (0, 7, 8):

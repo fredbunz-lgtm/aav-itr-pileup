@@ -90,11 +90,11 @@ def load_reads(fastq_path):
             h = f.readline()
             if not h:
                 break
-            seq = f.readline().strip().upper()
+            seq  = f.readline().strip().upper()
             f.readline()
-            f.readline()
+            qual = f.readline().strip()
             if seq:
-                reads.append(seq)
+                reads.append((seq, qual))
     return reads
 
 
@@ -160,7 +160,7 @@ def fill_gap(pileup, s, qi0, ri0, qi1, ri1, R):
         rp = ri0 + dri
         qp = qi0 + dqi
         if 0 <= rp < R and qp < len(s) and rp not in pileup:
-            pileup[rp] = s[qp]
+            pileup[rp] = (s[qp], qp)
 
 
 # ── Read alignment ─────────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ def align_read(seq, ref, idx, R, k=K, band=30, end_clip=END_CLIP):
             for kp in range(k):
                 rp = ri + kp; qp = qi + kp
                 if 0 <= rp < R and qp < len(s) and rp not in pileup:
-                    pileup[rp] = s[qp]
+                    pileup[rp] = (s[qp], qp)
 
         # Fill inter-anchor gaps with banded NW
         anchors = [(qi, ri, qi+k, ri+k) for qi, ri in seg_hits]
@@ -247,20 +247,25 @@ def align_read(seq, ref, idx, R, k=K, band=30, end_clip=END_CLIP):
 
 
 # ── Pileup accumulation ────────────────────────────────────────────────────────
-def run_pileup(reads, ref, idx, R, verbose=True):
+def run_pileup(reads, ref, idx, R, min_base_qual=20, verbose=True):
     counts = {b: np.zeros(R, dtype=np.int32) for b in BASES}
     coverage = np.zeros(R, dtype=np.int32)
     aligned = 0
     t0 = time.time()
 
-    for i, seq in enumerate(reads):
+    for i, (seq, qual) in enumerate(reads):
         if verbose and i % 500 == 0:
             print(f'  Aligning read {i}/{len(reads)} ({time.time()-t0:.1f}s)', flush=True)
         proj = align_read(seq, ref, idx, R)
         if proj:
             aligned += 1
-            for rpos, base in proj.items():
+            for rpos, (base, qp) in proj.items():
                 if 0 <= rpos < R:
+                    # Per-base quality filter
+                    if qual and qp < len(qual):
+                        bq = ord(qual[qp]) - 33
+                        if bq < min_base_qual:
+                            continue
                     coverage[rpos] += 1
                     if base in counts:
                         counts[base][rpos] += 1
@@ -390,9 +395,9 @@ def write_csv(coverage, counts, ref, R, right_itr, left_itr, flag_pct, out_path)
 
 
 # ── Output: Figures ────────────────────────────────────────────────────────────
-BG = '#0d1117'; PANEL = '#161b22'; GRID = '#21262d'; TEXT = 'white'
-BCOL = {'A': '#3fb950', 'T': '#f78166', 'G': '#d2a8ff', 'C': '#ffa657'}
-DEV_COLOR = '#58a6ff'; FLAG_COLOR = '#f85149'
+BG = 'white'; PANEL = '#f8f8f8'; GRID = '#dddddd'; TEXT = 'black'
+BCOL = {'A': '#00aa00', 'T': '#dd0000', 'G': '#111111', 'C': '#0066cc'}
+DEV_COLOR = '#4488cc'; FLAG_COLOR = '#cc2200'
 RITR_COLOR = '#ffa657'; LITR_COLOR = '#3fb950'
 
 
@@ -409,63 +414,76 @@ def _style(ax):
 
 def plot_full_plasmid(coverage, counts, ref, R, dev_pct, flag_mask,
                       right_itr, left_itr, name, out_path):
-    cov_s = np.where(coverage > 0, coverage, 1)
-    pos = np.arange(1, R+1)
+    """
+    Two-panel figure restricted to ITR-to-ITR region:
+    1. Base composition as raw read counts
+    2. Deviation from reference, color-coded by region
+    """
+    # Determine ITR-to-ITR bounds
+    itr_starts = [itr[0] for itr in [right_itr, left_itr] if itr]
+    itr_ends   = [itr[1] for itr in [right_itr, left_itr] if itr]
+    lo = max(1, min(itr_starts) - 5) if itr_starts else 1
+    hi = min(R, max(itr_ends) + 5)   if itr_ends   else R
 
-    fig, axes = plt.subplots(3, 1, figsize=(18, 12), sharex=True)
+    pos     = np.arange(lo, hi + 1)
+    mask    = np.arange(lo - 1, hi)   # 0-based indices
+    cov_sub = coverage[mask]
+    dev_sub = dev_pct[mask]
+    flag_sub = flag_mask[mask]
+
+    insert_len = hi - lo + 1
+    fig, axes = plt.subplots(2, 1, figsize=(18, 10), sharex=True)
     fig.patch.set_facecolor(BG)
-    fig.suptitle(f'{name} ONT Pileup — Full Plasmid ({R:,} bp)',
+    fig.suptitle(f'{name} ONT Pileup — ITR to ITR ({insert_len:,} bp)',
                  color=TEXT, fontsize=13, fontweight='bold')
 
-    # Panel 1: coverage
-    ax = axes[0]
-    ax.fill_between(pos, coverage, color=DEV_COLOR, alpha=0.6)
-    if right_itr:
-        ax.axvspan(*right_itr, color=RITR_COLOR, alpha=0.25, label='Right ITR')
-    if left_itr:
-        ax.axvspan(*left_itr, color=LITR_COLOR, alpha=0.25, label='Left ITR')
-    ax.set_ylabel('Coverage (×)', color=TEXT)
-    ax.set_title('Coverage', color=TEXT)
-    if right_itr or left_itr:
-        ax.legend(fontsize=8, facecolor=PANEL, labelcolor=TEXT)
-    _style(ax)
-
-    # Panel 2: base composition
-    ax = axes[1]
-    bot = np.zeros(R)
+    # Panel 1: base composition as raw counts
+    ax  = axes[0]
+    bot = np.zeros(insert_len)
     for base, color in BCOL.items():
-        frac = counts[base] / cov_s
-        ax.bar(pos, frac, bottom=bot, color=color, label=base, width=1, alpha=0.9)
-        bot += frac
+        ax.bar(pos, counts[base][mask], bottom=bot,
+               color=color, label=base, width=1, alpha=0.9)
+        bot += counts[base][mask]
     if right_itr:
-        ax.axvspan(*right_itr, color=RITR_COLOR, alpha=0.2)
+        ax.axvspan(*right_itr, color=RITR_COLOR, alpha=0.2, label='Right ITR')
     if left_itr:
-        ax.axvspan(*left_itr, color=LITR_COLOR, alpha=0.2)
-    ax.set_ylabel('Base fraction', color=TEXT)
+        ax.axvspan(*left_itr, color=LITR_COLOR, alpha=0.2, label='Left ITR')
+    ax.set_ylabel('Read count', color=TEXT)
     ax.set_title('Base composition', color=TEXT)
-    ax.legend(loc='lower right', ncol=4, fontsize=8, facecolor=PANEL, labelcolor=TEXT)
+    ax.legend(loc='upper right', ncol=6, fontsize=8, facecolor=PANEL, labelcolor=TEXT)
     _style(ax)
 
-    # Panel 3: deviation
-    ax = axes[2]
-    ritr_mask = np.zeros(R, bool)
-    litr_mask = np.zeros(R, bool)
+    # Panel 2: deviation color-coded by region
+    ax = axes[1]
+    ritr_mask_sub = np.zeros(insert_len, bool)
+    litr_mask_sub = np.zeros(insert_len, bool)
     if right_itr:
-        ritr_mask[right_itr[0]-1:right_itr[1]] = True
+        for i, p in enumerate(pos):
+            if right_itr[0] <= p <= right_itr[1]:
+                ritr_mask_sub[i] = True
     if left_itr:
-        litr_mask[left_itr[0]-1:left_itr[1]] = True
+        for i, p in enumerate(pos):
+            if left_itr[0] <= p <= left_itr[1]:
+                litr_mask_sub[i] = True
 
-    clean = ~flag_mask
-    ax.bar(pos[clean], dev_pct[clean], width=1, color=DEV_COLOR, alpha=0.4)
+    transgene_color = '#888888'
+    clean = ~flag_sub
+    ax.bar(pos[clean], dev_sub[clean], width=1, color=DEV_COLOR, alpha=0.4)
+    # Transgene cassette (between ITRs, flagged positions)
+    transgene_mask = flag_sub & ~ritr_mask_sub & ~litr_mask_sub
+    ax.bar(pos[transgene_mask], dev_sub[transgene_mask], width=1,
+           color=transgene_color, alpha=0.9, label='Transgene cassette')
     if right_itr:
-        m = flag_mask & ritr_mask
-        ax.bar(pos[m], dev_pct[m], width=1, color=RITR_COLOR, alpha=0.9, label='Right ITR')
+        m = flag_sub & ritr_mask_sub
+        ax.bar(pos[m], dev_sub[m], width=1, color=RITR_COLOR, alpha=0.9, label='Right ITR')
     if left_itr:
-        m = flag_mask & litr_mask
-        ax.bar(pos[m], dev_pct[m], width=1, color=LITR_COLOR, alpha=0.9, label='Left ITR')
-    other = flag_mask & ~ritr_mask & ~litr_mask
-    ax.bar(pos[other], dev_pct[other], width=1, color=FLAG_COLOR, alpha=0.9, label='Other')
+        m = flag_sub & litr_mask_sub
+        ax.bar(pos[m], dev_sub[m], width=1, color=LITR_COLOR, alpha=0.9, label='Left ITR')
     ax.axhline(10.0, color=FLAG_COLOR, ls='--', lw=1, alpha=0.7, label='10% threshold')
+    if right_itr:
+        ax.axvspan(*right_itr, color=RITR_COLOR, alpha=0.15)
+    if left_itr:
+        ax.axvspan(*left_itr, color=LITR_COLOR, alpha=0.15)
     ax.set_ylabel('Non-ref bases (%)', color=TEXT)
     ax.set_xlabel('Position', color=TEXT)
     ax.set_title('Deviation from reference', color=TEXT)
@@ -473,7 +491,7 @@ def plot_full_plasmid(coverage, counts, ref, R, dev_pct, flag_mask,
     _style(ax)
 
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor=BG)
+    plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor='white')
     plt.close()
 
 
@@ -486,11 +504,12 @@ def plot_itr_detail(coverage, counts, ref, R, dev_pct, flag_mask,
     fig.suptitle(f'{name} — ITR Detail', color=TEXT, fontsize=13, fontweight='bold')
 
     itrs = []
-    if right_itr:
-        itrs.append((right_itr, 'Right ITR', RITR_COLOR))
     if left_itr:
         itrs.append((left_itr, 'Left ITR', LITR_COLOR))
+    if right_itr:
+        itrs.append((right_itr, 'Right ITR', RITR_COLOR))
 
+    dev_axes = []
     for col_idx, (itr, label, color) in enumerate(itrs[:2]):
         lo = max(1, itr[0] - 30)
         hi = min(R, itr[1] + 10)
@@ -500,13 +519,13 @@ def plot_itr_detail(coverage, counts, ref, R, dev_pct, flag_mask,
         cov_sub = cov_s[mask]
         flag_sub = flag_mask[mask]
 
-        # Top row: base composition
+        # Top row: base composition as raw counts
         ax = axes[0][col_idx]
         bot = np.zeros(mask.sum())
         for base, bc in BCOL.items():
-            frac = counts[base][mask] / cov_sub
-            ax.bar(p_sub, frac, bottom=bot, color=bc, label=base, width=1, alpha=0.9)
-            bot += frac
+            ax.bar(p_sub, counts[base][mask], bottom=bot,
+                   color=bc, label=base, width=1, alpha=0.9)
+            bot += counts[base][mask]
         ax.axvline(itr[0], color=color, lw=2, ls='--', alpha=0.8, label='ITR boundary')
         ax.axvline(itr[1], color=color, lw=2, ls='--', alpha=0.8)
 
@@ -514,9 +533,9 @@ def plot_itr_detail(coverage, counts, ref, R, dev_pct, flag_mask,
         ff = next((r for r in flipflop_results if r.get('found_arms') and label in r['itr_name']), None)
         if ff:
             ax.axvspan(ff['inner_abs'][0], ff['inner_abs'][1],
-                       color='#ffffff', alpha=0.1, label=f'Inner loop ({ff["mean_flop_pct"]:.1f}% flop)')
+                       color=color, alpha=0.12, label=f'Inner loop ({ff["mean_flop_pct"]:.1f}% flop)')
         ax.set_title(f'{label} — Base Composition', color=TEXT, fontweight='bold')
-        ax.set_ylabel('Fraction', color=TEXT)
+        ax.set_ylabel('Read count', color=TEXT)
         ax.legend(ncol=5, fontsize=7, facecolor=PANEL, labelcolor=TEXT)
         _style(ax)
 
@@ -541,10 +560,17 @@ def plot_itr_detail(coverage, counts, ref, R, dev_pct, flag_mask,
         ax.set_title(f'{label} — Deviation', color=TEXT, fontweight='bold')
         ax.set_ylabel('Non-ref (%)', color=TEXT)
         ax.set_xlabel('Position', color=TEXT)
+        dev_axes.append(ax)
         _style(ax)
 
+    # Share y-axis across both deviation panels for direct comparison
+    if len(dev_axes) == 2:
+        ymax = max(ax.get_ylim()[1] for ax in dev_axes)
+        for ax in dev_axes:
+            ax.set_ylim(0, ymax)
+
     plt.tight_layout(rect=[0, 0, 1, 0.96])
-    plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor=BG)
+    plt.savefig(out_path, dpi=150, bbox_inches='tight', facecolor='white')
     plt.close()
 
 
@@ -634,6 +660,8 @@ def main():
         epilog=__doc__
     )
     parser.add_argument('--fastq',      required=True)
+    parser.add_argument('--min-base-qual', type=int, default=20,
+                        help='Minimum base quality score (Phred, default 10)')
     parser.add_argument('--fasta',      required=True)
     parser.add_argument('--right-itr',  nargs=2, type=int, metavar=('START', 'END'))
     parser.add_argument('--left-itr',   nargs=2, type=int, metavar=('START', 'END'))
@@ -669,7 +697,7 @@ def main():
     idx = build_kmer_index(ref)
 
     print(f'\n[3/5] Aligning reads...')
-    coverage, counts, aligned = run_pileup(reads, ref, idx, R)
+    coverage, counts, aligned = run_pileup(reads, ref, idx, R, min_base_qual=args.min_base_qual)
 
     # ── Compute deviation ──
     cov_s = np.where(coverage > 0, coverage, 1)
@@ -729,4 +757,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
