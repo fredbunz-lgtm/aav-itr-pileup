@@ -1,0 +1,19 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS/editor clutter
+.DS_Store
+Thumbs.db
+*~
+
+# Compressed/bulk data
+*.zip
+*.gz
+*.tar
+*.tar.gz
+
+# Large or restricted raw datasets
+data/raw/

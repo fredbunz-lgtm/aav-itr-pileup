@@ -1,0 +1,3 @@
+record_id,plasmid_length,start_0based,end_0based_exclusive,best_ref,score,aligned_ref_bases,aligned_plasmid_span,itr_index,has_delta11_junction,delta11_junction,delta11_position_0based,itr_class,distance_to_ori_bp,ori_label,ori_start_0based,ori_end_0based_exclusive,ori_score,ori_strand
+pSEPTp53,7242,1945,2064,145_ITR_Flop,222.0,119,119,1,True,delta11_forward,1965,119_delta11,845,ori_adjacent_pBR322,961,1100,139,-
+pSEPTp53,7242,6438,6568,145RC_ITR_Flop,260.0,130,130,2,False,,,130_like,1635,ori_adjacent_pBR322,961,1100,139,-

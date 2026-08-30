@@ -1,0 +1,2 @@
+record_id,plasmid_length,num_itr_hits,itr_classes,has_130_119_pair,ori_label,ori_start_0based,ori_end_0based_exclusive,origin_proximal_itr_index,origin_proximal_itr_class,is_119_delta11_origin_proximal
+pSEPTp53,7242,2,119_delta11;130_like,True,ori_adjacent_pBR322,961,1100,1,119_delta11,True
