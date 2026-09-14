@@ -17,3 +17,4 @@ Thumbs.db
 
 # Large or restricted raw datasets
 data/raw/
+.env
