@@ -1,0 +1,4 @@
+ijson
+python-dotenv
+requests
+mappy

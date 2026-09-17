@@ -1,20 +1,41 @@
-# Python
-venv/
+# Secrets
+.env
+*.env
+
+# Raw Addgene bulk/API downloads
+addgene_bulk/
+genbank_files/
+
+# Large or regenerated intermediate data
+results/
+data/raw/
+data/processed/
+*.tmp
+*.bak
+
+# Python cache / compiled files
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Logs
+*.log
+
+# OS/editor files
+.DS_Store
+*~
 .ipynb_checkpoints/
 
-# OS/editor clutter
-.DS_Store
-Thumbs.db
-*~
-
-# Compressed/bulk data
-*.zip
-*.gz
-*.tar
-*.tar.gz
-
-# Large or restricted raw datasets
-data/raw/
-.env
+# Local scratch/output files
+pSEPTp53*
+*.old_*
+archive/
+*.gb
+*pre_detect_ori_patch.py
+ori_refs.fasta
