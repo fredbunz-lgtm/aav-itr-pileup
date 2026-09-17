@@ -5,3 +5,4 @@ addgene_bulk/
 genbank_files/
 results/
 *.bak
+archive/
