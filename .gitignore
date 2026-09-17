@@ -1,0 +1,7 @@
+.env
+__pycache__/
+*.pyc
+addgene_bulk/
+genbank_files/
+results/
+*.bak
