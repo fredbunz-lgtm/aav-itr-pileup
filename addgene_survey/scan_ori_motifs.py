@@ -26,23 +26,29 @@ def find_all_circular(seq, motif):
         start = i + 1
     return hits
 
-if len(sys.argv) != 2:
-    print("Usage: python3 scan_ori_motifs.py plasmid.fasta")
-    sys.exit(1)
 
-for rec in SeqIO.parse(sys.argv[1], "fasta"):
-    seq = str(rec.seq).upper()
-    n = len(seq)
-    print(f"Record: {rec.id}, length={n}")
-    found = False
+def main():
+    if len(sys.argv) != 2:
+        print("Usage: python3 scan_ori_motifs.py plasmid.fasta")
+        sys.exit(1)
 
-    for label, motif in MOTIFS.items():
-        rc = str(Seq(motif).reverse_complement())
-        for strand, query in [("+", motif), ("-", rc)]:
-            for pos in find_all_circular(seq, query):
-                found = True
-                end = (pos + len(query)) % n
-                print(f"{label}\tstrand={strand}\tstart_0based={pos}\tend_0based_exclusive={end}\tlength={len(query)}")
+    for rec in SeqIO.parse(sys.argv[1], "fasta"):
+        seq = str(rec.seq).upper()
+        n = len(seq)
+        print(f"Record: {rec.id}, length={n}")
+        found = False
 
-    if not found:
-        print("No exact ori motif hits found.")
+        for label, motif in MOTIFS.items():
+            rc = str(Seq(motif).reverse_complement())
+            for strand, query in [("+", motif), ("-", rc)]:
+                for pos in find_all_circular(seq, query):
+                    found = True
+                    end = (pos + len(query)) % n
+                    print(f"{label}\tstrand={strand}\tstart_0based={pos}\tend_0based_exclusive={end}\tlength={len(query)}")
+
+        if not found:
+            print("No exact ori motif hits found.")
+
+
+if __name__ == "__main__":
+    main()
