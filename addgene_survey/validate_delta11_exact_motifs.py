@@ -68,7 +68,7 @@ def main():
                     seq = clean(raw)
 
                     # Use seq + seq so motifs that cross the circular origin are counted.
-                    seq2 = seq + seq
+                    seq2 = seq + seq[:33]
 
                     forward_count = seq2.count(MOTIFS["delta11_forward"])
                     reverse_count = seq2.count(MOTIFS["delta11_reverse"])
