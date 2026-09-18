@@ -7,7 +7,7 @@ from pathlib import Path
 
 import ijson
 
-from test_itr_detection import (
+from itr_detection import (
     ITR_REFS,
     clean,
     make_aligner,
