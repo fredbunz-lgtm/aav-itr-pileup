@@ -2,7 +2,7 @@
 
 Custom Python pipelines for nanopore sequencing analysis of AAV plasmid vectors and encapsidated viral genomes. Developed to support:
 
-> Jaskula-Ranga V, Li S, Pandya A, Bunz F. *Stable propagation of inverted terminal repeats in adeno-associated virus plasmid vectors.* bioRxiv (2026).
+> Jaskula-Ranga V, Li S, Pandya A, Bunz F. *Plasmid architecture determines the stability of inverted terminal repeats in adeno-associated virus vectors.* bioRxiv (2026).
 
 ---
 
@@ -291,6 +291,16 @@ python pacbio_pileup.py \
     --name pSM620_fragment \
     --output-dir ./pacbio_results/
 ```
+---
+
+## 4. Addgene Survey Workflow
+
+This workflow covers the Addgene survey portion of the project, including
+sequence validation, motif checks, and related analysis steps performed
+across the Addgene plasmid repository.
+
+See [`addgene_survey/README.md`](addgene_survey/README.md) for a detailed,
+step-by-step description of the full pipeline (14 scripts).
 
 ---
 
@@ -304,7 +314,7 @@ Raw sequencing data are deposited in NCBI SRA under BioProject PRJNA1439403. Pro
 
 If you use these scripts in your work, please cite:
 
-> Jaskula-Ranga V, Li S, Pandya A, Bunz F. *Stable propagation of inverted terminal repeats in adeno-associated virus plasmid vectors.* bioRxiv (2026).
+> Jaskula-Ranga V, Li S, Pandya A, Bunz F. *Plasmid architecture determines the stability of inverted terminal repeats in adeno-associated virus vectors.* bioRxiv (2026).
 
 ---
 
